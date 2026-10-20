@@ -1,0 +1,94 @@
+name: Instalador Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/**']
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows 11 compatible · x64
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar directorio de instalación de prueba
+        run: '"INSTALL_DIRECTORY=$env:RUNNER_TEMP\Arriendos" >> $env:GITHUB_ENV'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Instalar dependencias JS bloqueadas
+        run: npm ci
+      - name: Pruebas y compilación web
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+      - name: Probar migración compatible con la base original
+        run: python -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: Verificar resolución de dependencias nativas
+        run: cargo metadata --locked --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml > $null
+      - name: Compilar instalador anterior para prueba de actualización
+        # Only the CI baseline uses 0.0.0. It is never distributed.
+        run: |
+          $baselineConfig = Join-Path $env:RUNNER_TEMP 'arriendos-baseline.json'
+          '{"version":"0.0.0"}' | Set-Content -Encoding utf8 $baselineConfig
+          npm run tauri build -- --bundles nsis --ci --config $baselineConfig -- --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item $baselineConfig
+      - name: Instalar versión anterior y probar SQLite nativo sin red externa
+        run: |
+          $baseline = Get-ChildItem src-tauri/target/release/bundle/nsis/*0.0.0*setup.exe
+          if (@($baseline).Count -ne 1) { throw 'Se esperaba exactamente un instalador base' }
+          ./scripts/install-windows.ps1 -Installer $baseline.FullName -InstallDirectory $env:INSTALL_DIRECTORY
+          npm run test:windows -- "$env:INSTALL_DIRECTORY\arriendos.exe" seed
+      - name: Compilar instalador final de Windows con WebView2 offline
+        run: npm run tauri build -- --bundles nsis --ci -- --locked
+      - name: Actualizar instalación y verificar conservación de departamentos
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*_${version}_*setup.exe"
+          if (@($installer).Count -ne 1) { throw 'Se esperaba exactamente un instalador final' }
+          ./scripts/install-windows.ps1 -Installer $installer.FullName -InstallDirectory $env:INSTALL_DIRECTORY
+          npm run test:windows -- "$env:INSTALL_DIRECTORY\arriendos.exe" upgrade
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force installer | Out-Null
+          Copy-Item $installer.FullName installer/
+          $hash = Get-FileHash $installer.FullName -Algorithm SHA256
+          "$($hash.Hash.ToLower())  $($installer.Name)" | Set-Content -Encoding ascii installer/SHA256SUMS.txt
+          Copy-Item docs/INSTALAR-WINDOWS.md installer/LEEME.md
+      - name: Guardar evidencias de las pruebas nativas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-windows
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Publicar archivo descargable del instalador verificado
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arriendos-Windows-x64
+          path: installer/
+          if-no-files-found: error
+          retention-days: 90

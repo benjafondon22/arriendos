@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src-tauri/target/
+*.log
+.DS_Store
+
+*.tsbuildinfo
+
+__pycache__/
+test-results/
+installer/
+src-tauri/ci-baseline.json
