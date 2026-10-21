@@ -3,6 +3,7 @@
 The Windows job additionally tests the installed Tauri app through its real IPC.
 These tests alone do not claim native desktop readiness.
 """
+from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
@@ -18,12 +19,12 @@ class PersistenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'arriendos.db'
             original = {'id': 'legacy', 'title': 'Ñuñoa · terraza', 'rent': 500000, 'phone': '+56 9 1234 5678'}
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute('CREATE TABLE apartments (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
                 db.execute('INSERT INTO apartments VALUES (?, ?)', ('legacy', json.dumps(original)))
             # Adopt a database produced by the first version; then repeat startup.
             for _ in range(2):
-                with sqlite3.connect(path) as db:
+                with closing(sqlite3.connect(path)) as db, db:
                     db.executescript(MIGRATION)
                     self.assertEqual(json.loads(db.execute('SELECT data FROM apartments').fetchone()[0]), original)
                     self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0], 'ok')
@@ -31,15 +32,15 @@ class PersistenceTests(unittest.TestCase):
     def test_new_database_updates_persist_and_delete(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'arriendos.db'
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.executescript(MIGRATION)
                 for value in ['primera', 'actualizada']:
                     db.execute('INSERT INTO apartments (id, data) VALUES ($1, $2) ON CONFLICT(id) DO UPDATE SET data = excluded.data', {'1': 'a', '2': json.dumps({'title': value})})
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 self.assertEqual(db.execute('SELECT COUNT(*) FROM apartments').fetchone()[0], 1)
                 self.assertEqual(json.loads(db.execute('SELECT data FROM apartments').fetchone()[0])['title'], 'actualizada')
                 db.execute('DELETE FROM apartments WHERE id = $1', {'1': 'a'})
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 self.assertEqual(db.execute('SELECT COUNT(*) FROM apartments').fetchone()[0], 0)
 
     def test_stable_identity_and_offline_installer(self):

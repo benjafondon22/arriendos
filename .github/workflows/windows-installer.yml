@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 60
     env:
       CARGO_TERM_COLOR: always
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - name: Preparar directorio de instalación de prueba
@@ -45,7 +46,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
       - name: Probar migración compatible con la base original
-        run: python -m unittest discover -s scripts -p 'test_*.py' -v
+        run: |
+          $output = python -m unittest discover -s scripts -p 'test_*.py' -v 2>&1
+          $code = $LASTEXITCODE
+          $output | Out-String | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          if ($code -ne 0) { exit $code }
       - name: Verificar resolución de dependencias nativas
         run: cargo metadata --locked --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml > $null
       - name: Compilar instalador anterior para prueba de actualización
@@ -61,7 +66,10 @@ jobs:
           $baseline = Get-ChildItem src-tauri/target/release/bundle/nsis/*0.0.0*setup.exe
           if (@($baseline).Count -ne 1) { throw 'Se esperaba exactamente un instalador base' }
           ./scripts/install-windows.ps1 -Installer $baseline.FullName -InstallDirectory $env:INSTALL_DIRECTORY
-          npm run test:windows -- "$env:INSTALL_DIRECTORY\arriendos.exe" seed
+          npm run test:windows -- "$env:INSTALL_DIRECTORY\arriendos.exe" seed 2>&1 | Tee-Object -Variable smokeOutput
+          $code = $LASTEXITCODE
+          $smokeOutput | Out-String >> $env:GITHUB_STEP_SUMMARY
+          if ($code -ne 0) { exit $code }
       - name: Compilar instalador final de Windows con WebView2 offline
         run: npm run tauri build -- --bundles nsis --ci -- --locked
       - name: Actualizar instalación y verificar conservación de departamentos
@@ -70,8 +78,10 @@ jobs:
           $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*_${version}_*setup.exe"
           if (@($installer).Count -ne 1) { throw 'Se esperaba exactamente un instalador final' }
           ./scripts/install-windows.ps1 -Installer $installer.FullName -InstallDirectory $env:INSTALL_DIRECTORY
-          npm run test:windows -- "$env:INSTALL_DIRECTORY\arriendos.exe" upgrade
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:windows -- "$env:INSTALL_DIRECTORY\arriendos.exe" upgrade 2>&1 | Tee-Object -Variable smokeOutput
+          $code = $LASTEXITCODE
+          $smokeOutput | Out-String >> $env:GITHUB_STEP_SUMMARY
+          if ($code -ne 0) { exit $code }
           New-Item -ItemType Directory -Force installer | Out-Null
           Copy-Item $installer.FullName installer/
           $hash = Get-FileHash $installer.FullName -Algorithm SHA256
