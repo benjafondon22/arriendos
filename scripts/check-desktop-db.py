@@ -3,6 +3,14 @@ import json
 from pathlib import Path
 import sqlite3
 import sys
+import traceback
+
+def report_error(kind, error, tb):
+    diagnostic = ''.join(traceback.format_exception(kind, error, tb)).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    print(f'::error title=Comprobación SQLite::{diagnostic}', flush=True)
+    sys.__excepthook__(kind, error, tb)
+
+sys.excepthook = report_error
 
 path, title = Path(sys.argv[1]), sys.argv[2]
 assert path.is_file(), f"No existe SQLite en AppConfig: {path}"

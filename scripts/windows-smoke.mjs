@@ -104,9 +104,11 @@ try {
     await launch();
   }
   if (phase === 'upgrade') {
+    console.log('::notice title=Actualización::Aplicación iniciada; comprobando tabla y base original');
     await page.getByRole('heading', { name: title, exact: true }).waitFor();
     assert.equal(await page.locator('tbody tr').count(), 3, 'Deben conservarse los tres departamentos');
-    checkDatabase('unchanged'); // Opening 0.2.0 must not rewrite even one legacy row.
+    checkDatabase('unchanged');
+    console.log('::notice title=Actualización::Tres registros originales idénticos tras actualizar'); // Opening 0.2.0 must not rewrite even one legacy row.
     await page.getByRole('button', { name: 'Columnas', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Notas', exact: true }).check();
     await page.getByRole('button', { name: 'Listo', exact: true }).click();
@@ -121,6 +123,7 @@ try {
   await page.getByRole('heading', { name: 'No hay coincidencias' }).waitFor();
   await page.getByRole('button', { name: 'Limpiar filtros' }).click();
   if (phase === 'upgrade') {
+    console.log('::notice title=Actualización::Probando ID, agenda y disponibilidad');
     await page.getByRole('button', { name: `Editar ${title}` }).click();
     await page.getByLabel('Notas', { exact: true }).fill('Actualizado después de instalar la nueva versión');
     await page.getByLabel('ID de publicación', { exact: true }).fill('NUN-001');
@@ -139,6 +142,7 @@ try {
     await page.getByRole('heading', { name: title, exact: true }).waitFor();
     await close();
     checkDatabase('enhanced');
+    console.log('::notice title=Actualización::Nuevos campos guardados en SQLite; reabriendo');
     await launch();
     await page.getByText('Actualizado después de instalar la nueva versión', { exact: true }).waitFor();
     assert.equal(await page.getByLabel(`Disponibilidad de ${title}`, { exact: true }).inputValue(), 'finished');
@@ -158,6 +162,8 @@ try {
   assert.deepEqual(externalRequests, [], 'La app intentó acceder a Internet');
   console.log(`PASS ${phase}: SQLite real, cierre normal, reapertura y red externa bloqueada. Base: ${dbPath}`);
 } catch (error) {
+  const diagnostic = String(error.stack || error).replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+  console.log(`::error title=Prueba nativa ${phase}::${diagnostic}`);
   if (page) await page.screenshot({ path: `test-results/windows-${phase}-error.png` }).catch(() => {});
   throw error;
 } finally {
