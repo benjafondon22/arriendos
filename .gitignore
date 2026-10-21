@@ -12,3 +12,5 @@ installer/
 src-tauri/ci-baseline.json
 
 .ci-previous/
+
+.ci-previous-installer/

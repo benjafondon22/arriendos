@@ -13,7 +13,7 @@ Workflow: [Instalador Windows](.github/workflows/windows-installer.yml).
 - Se ejecuta con cambios a `main`, ramas `codex/**`, tags `v*`, PRs a `main` o manualmente.
 - Usa Windows, Node 22, Rust estable, `npm ci` y `Cargo.lock` con `--locked`.
 - Ejecuta pruebas de filtros, migración compatible con la base original y compilación web.
-- Descarga el código real de 0.1.0 (commit fijo), construye e instala esa versión, guarda tres departamentos mediante su interfaz y verifica el archivo SQLite real con Python.
+- Recupera el instalador publicado y verificado de 0.1.0 y comprueba su SHA-256. Si el artifact expiró, compila el código del commit original. Instala esa versión, guarda tres departamentos mediante su interfaz y verifica el archivo SQLite real con Python.
 - Cierra normalmente la ventana y comprueba los mismos datos después de reabrir.
 - Construye 0.2.0, actualiza la instalación 0.1.0 y compara los tres registros originales antes de editar. Comprueba también los nuevos campos, filtros y columnas persistentes.
 - Las pruebas nativas se conectan al WebView2 propio de la app con Playwright/CDP. No lanzan un navegador externo. Sólo el proceso de pruebas habilita temporalmente el puerto de depuración local; el programa distribuido no lo habilita.

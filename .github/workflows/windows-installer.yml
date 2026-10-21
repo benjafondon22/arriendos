@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -53,13 +54,24 @@ jobs:
           if ($code -ne 0) { exit $code }
       - name: Verificar resolución de dependencias nativas
         run: cargo metadata --locked --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml > $null
-      - name: Descargar código de la versión instalada 0.1.0
+      - name: Recuperar instalador publicado 0.1.0
+        id: previous-installer
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: Arriendos-Windows-x64
+          run-id: 39518584442
+          github-token: ${{ github.token }}
+          path: .ci-previous-installer
+      - name: Descargar código 0.1.0 si el instalador publicado ya expiró
+        if: steps.previous-installer.outcome != 'success'
         uses: actions/checkout@v4
         with:
           ref: a7dc2f31a4e652977c5975631fad174abcbbe341
           path: .ci-previous
           persist-credentials: false
-      - name: Compilar instalador real 0.1.0 para prueba de actualización
+      - name: Compilar instalador 0.1.0 sólo si es necesario
+        if: steps.previous-installer.outcome != 'success'
         run: |
           npm ci --prefix .ci-previous
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -71,7 +83,15 @@ jobs:
           if ($code -ne 0) { exit $code }
       - name: Instalar 0.1.0 y guardar tres departamentos en SQLite
         run: |
-          $baseline = Get-ChildItem src-tauri/target/release/bundle/nsis/*0.1.0*setup.exe
+          if (Test-Path '.ci-previous-installer/SHA256SUMS.txt') {
+            $baseline = Get-ChildItem .ci-previous-installer/*0.1.0*setup.exe
+            if (@($baseline).Count -ne 1) { throw 'Instalador publicado 0.1.0 no encontrado' }
+            $expected = ((Get-Content .ci-previous-installer/SHA256SUMS.txt).Trim() -split '\s+')[0]
+            $actual = (Get-FileHash $baseline.FullName -Algorithm SHA256).Hash.ToLower()
+            if ($actual -ne $expected) { throw 'El SHA256 del instalador publicado no coincide' }
+          } else {
+            $baseline = Get-ChildItem src-tauri/target/release/bundle/nsis/*0.1.0*setup.exe
+          }
           if (@($baseline).Count -ne 1) { throw 'Se esperaba exactamente un instalador base' }
           ./scripts/install-windows.ps1 -Installer $baseline.FullName -InstallDirectory $env:INSTALL_DIRECTORY
           npm run test:windows -- "$env:INSTALL_DIRECTORY\arriendos.exe" seed 2>&1 | Tee-Object -Variable smokeOutput

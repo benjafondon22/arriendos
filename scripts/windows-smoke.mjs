@@ -85,6 +85,7 @@ try {
     await page.getByLabel('Teléfono de contacto').fill('+56 9 1234 5678');
     await page.getByLabel('Notas', { exact: true }).fill('Persistencia nativa sin internet');
     await page.getByRole('button', { name: 'Guardar departamento', exact: true }).click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.getByRole('heading', { name: title, exact: true }).waitFor();
     await page.getByRole('button', { name: 'Contactado', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('.status-actions button.checked') !== null);
@@ -97,6 +98,7 @@ try {
       await page.getByLabel('Superficie').fill(area);
       await page.getByLabel('Notas', { exact: true }).fill('Registro original que debe conservarse sin cambios');
       await page.getByRole('button', { name: 'Guardar departamento', exact: true }).click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
       await page.getByRole('heading', { name, exact: true }).waitFor();
     }
     await close();
@@ -131,8 +133,10 @@ try {
     await page.getByRole('checkbox', { name: 'Visita agendada', exact: true }).check();
     await page.getByLabel('Fecha y hora de visita', { exact: true }).fill('2030-06-15T11:30');
     await page.getByRole('button', { name: 'Guardar departamento', exact: true }).click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.getByText('Actualizado después de instalar la nueva versión', { exact: true }).waitFor();
     await page.getByLabel('Buscar departamento').fill('nun-001');
+    await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1);
     assert.equal(await page.locator('tbody tr').count(), 1);
     await page.getByLabel('Filtrar por disponibilidad').selectOption('paused');
     await page.getByRole('heading', { name: title, exact: true }).waitFor();
