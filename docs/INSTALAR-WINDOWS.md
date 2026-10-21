@@ -12,7 +12,7 @@ Primero, los archivos de este proyecto deben estar guardados en tu repositorio d
 4. Espera a que la ejecución termine en verde. La primera puede tardar varias decenas de minutos: compila Rust, descarga WebView2 y prueba dos instalaciones.
 5. Abre esa ejecución y baja a **Artifacts**. Descarga **Arriendos-Windows-x64** (no `pruebas-windows`). Puede ser necesario haber iniciado sesión en GitHub.
 6. En Descargas, haz clic derecho en el ZIP y elige **Extraer todo**.
-7. Dentro encontrarás un archivo como **Arriendos_0.1.0_x64-setup.exe**, `SHA256SUMS.txt` y estas instrucciones. No descargues **Source code**: ese es el código, no la app instalable.
+7. Dentro encontrarás un archivo como **Arriendos_0.2.0_x64-setup.exe**, `SHA256SUMS.txt` y estas instrucciones. No descargues **Source code**: ese es el código, no la app instalable.
 
 El instalador se publica como artifact sólo después de superar las pruebas nativas de ese workflow. Los artifacts expiran a los 90 días: conserva el `.exe` o vuelve a ejecutar el workflow cuando lo necesites. No se crean Releases públicas ni actualizaciones automáticas.
 
@@ -59,3 +59,15 @@ No se prometen datos recuperables si se borra esa carpeta, falla el disco o se e
 4. Para restaurarla en el mismo usuario o en otro computador, instala la app, ciérrala y copia el respaldo en esa misma ubicación. Reemplazar una base reemplaza también la lista existente.
 
 El botón **Exportar JSON** es una copia legible adicional; esta versión no tiene importación de JSON. Los datos de la antigua vista web no se transfieren automáticamente a SQLite.
+
+## Novedades de la versión 0.2.0
+
+- Listado en tabla sin imágenes, con desplazamiento horizontal y columnas configurables. El botón **Columnas** permite mostrar u ocultar datos y recuerda tu selección. Publicación, código y acciones permanecen visibles.
+- Código de publicación opcional, visible bajo el nombre y buscable desde la barra de búsqueda. Es independiente del identificador interno de SQLite, que se conserva.
+- Disponibilidad: **Disponible**, **Pausada** o **Finalizada**. Puedes cambiarla desde la fila o el formulario, filtrar por ella y reactivar una publicación sin perder datos. Pausar o finalizar no elimina nada.
+- Marcas independientes de **Contactado**, **Visita agendada** y **Visitado**. Para agendar, indica fecha y hora; se muestran según la hora local de tu computador. Desmarca la agenda en el formulario para cancelarla. No hay notificaciones automáticas.
+- Filtro de visitas agendadas y orden por fecha de visita o código.
+
+Al pasar de 0.1.0 a 0.2.0 se conserva la misma base SQLite. Los departamentos existentes aparecen como disponibles, con código vacío y sin visita agendada, manteniendo sus valores, notas y marcas de contactado/visitado. Puedes completar los nuevos campos editando cada uno.
+
+La prueba automática instala el código real de la versión 0.1.0, guarda tres departamentos, instala la versión 0.2.0 encima y comprueba que se conserven los tres IDs y todos sus datos. Después verifica que los nuevos campos y las preferencias de columnas sobrevivan a cerrar y reabrir. Esta prueba utiliza datos de prueba; no accede a los departamentos privados de tu computador.

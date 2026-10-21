@@ -53,17 +53,25 @@ jobs:
           if ($code -ne 0) { exit $code }
       - name: Verificar resolución de dependencias nativas
         run: cargo metadata --locked --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml > $null
-      - name: Compilar instalador anterior para prueba de actualización
-        # Only the CI baseline uses 0.0.0. It is never distributed.
+      - name: Descargar código de la versión instalada 0.1.0
+        uses: actions/checkout@v4
+        with:
+          ref: a7dc2f31a4e652977c5975631fad174abcbbe341
+          path: .ci-previous
+          persist-credentials: false
+      - name: Compilar instalador real 0.1.0 para prueba de actualización
         run: |
-          $baselineConfig = Join-Path $env:RUNNER_TEMP 'arriendos-baseline.json'
-          '{"version":"0.0.0"}' | Set-Content -Encoding utf8 $baselineConfig
-          npm run tauri build -- --bundles nsis --ci --config $baselineConfig -- --locked
+          npm ci --prefix .ci-previous
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item $baselineConfig
-      - name: Instalar versión anterior y probar SQLite nativo sin red externa
+          $env:CARGO_TARGET_DIR = Join-Path $env:GITHUB_WORKSPACE 'src-tauri/target'
+          Push-Location .ci-previous
+          npm run tauri build -- --bundles nsis --ci -- --locked
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -ne 0) { exit $code }
+      - name: Instalar 0.1.0 y guardar tres departamentos en SQLite
         run: |
-          $baseline = Get-ChildItem src-tauri/target/release/bundle/nsis/*0.0.0*setup.exe
+          $baseline = Get-ChildItem src-tauri/target/release/bundle/nsis/*0.1.0*setup.exe
           if (@($baseline).Count -ne 1) { throw 'Se esperaba exactamente un instalador base' }
           ./scripts/install-windows.ps1 -Installer $baseline.FullName -InstallDirectory $env:INSTALL_DIRECTORY
           npm run test:windows -- "$env:INSTALL_DIRECTORY\arriendos.exe" seed 2>&1 | Tee-Object -Variable smokeOutput

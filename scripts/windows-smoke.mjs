@@ -63,8 +63,8 @@ async function close() {
   browser = undefined; page = undefined; child = undefined;
 }
 
-function checkDatabase() {
-  execFileSync('python', ['scripts/check-desktop-db.py', dbPath, title], { stdio: 'inherit' });
+function checkDatabase(mode = 'check') {
+  execFileSync('python', ['scripts/check-desktop-db.py', dbPath, title, mode], { stdio: 'inherit' });
 }
 
 try {
@@ -88,31 +88,72 @@ try {
     await page.getByRole('heading', { name: title, exact: true }).waitFor();
     await page.getByRole('button', { name: 'Contactado', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('.status-actions button.checked') !== null);
+    // Three actual 0.1.0 records, entered through the old UI, not fabricated JSON.
+    for (const [name, rent, area] of [['Segundo departamento original', '430000', '40'], ['Tercer departamento original', '710000', '68']]) {
+      await page.getByRole('button', { name: 'Agregar departamento', exact: true }).click();
+      await page.getByLabel('Nombre o dirección').fill(name);
+      await page.getByLabel('Arriendo mensual').fill(rent);
+      await page.getByLabel('Gastos comunes').fill('70000');
+      await page.getByLabel('Superficie').fill(area);
+      await page.getByLabel('Notas', { exact: true }).fill('Registro original que debe conservarse sin cambios');
+      await page.getByRole('button', { name: 'Guardar departamento', exact: true }).click();
+      await page.getByRole('heading', { name, exact: true }).waitFor();
+    }
     await close();
-    checkDatabase();
+    checkDatabase('capture');
     await launch();
+  }
+  if (phase === 'upgrade') {
+    await page.getByRole('heading', { name: title, exact: true }).waitFor();
+    assert.equal(await page.locator('tbody tr').count(), 3, 'Deben conservarse los tres departamentos');
+    checkDatabase('unchanged'); // Opening 0.2.0 must not rewrite even one legacy row.
+    await page.getByRole('button', { name: 'Columnas', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Notas', exact: true }).check();
+    await page.getByRole('button', { name: 'Listo', exact: true }).click();
   }
   // After either a normal restart or a real installer upgrade, the UI must read SQLite.
   await page.getByRole('heading', { name: title, exact: true }).waitFor();
-  assert.ok(await page.getByRole('button', { name: 'Contactado', exact: true }).evaluate(e => e.classList.contains('checked')));
+  const primary = page.locator(phase === 'seed' ? 'article' : 'tbody tr').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+  assert.ok(await primary.getByRole('button', { name: 'Contactado', exact: true }).evaluate(e => e.classList.contains('checked')));
   await page.getByText('Persistencia nativa sin internet', { exact: true }).waitFor();
+  await page.getByLabel('Buscar departamento').fill(title);
   await page.getByLabel('Presupuesto total máximo').fill('600000');
   await page.getByRole('heading', { name: 'No hay coincidencias' }).waitFor();
   await page.getByRole('button', { name: 'Limpiar filtros' }).click();
   if (phase === 'upgrade') {
     await page.getByRole('button', { name: `Editar ${title}` }).click();
     await page.getByLabel('Notas', { exact: true }).fill('Actualizado después de instalar la nueva versión');
+    await page.getByLabel('ID de publicación', { exact: true }).fill('NUN-001');
+    await page.getByLabel('Disponibilidad', { exact: true }).selectOption('paused');
+    await page.getByRole('checkbox', { name: 'Visita agendada', exact: true }).check();
+    await page.getByLabel('Fecha y hora de visita', { exact: true }).fill('2030-06-15T11:30');
     await page.getByRole('button', { name: 'Guardar departamento', exact: true }).click();
     await page.getByText('Actualizado después de instalar la nueva versión', { exact: true }).waitFor();
+    await page.getByLabel('Buscar departamento').fill('nun-001');
+    assert.equal(await page.locator('tbody tr').count(), 1);
+    await page.getByLabel('Filtrar por disponibilidad').selectOption('paused');
+    await page.getByRole('heading', { name: title, exact: true }).waitFor();
+    await page.getByLabel(`Disponibilidad de ${title}`, { exact: true }).selectOption('finished');
+    await page.getByRole('heading', { name: 'No hay coincidencias' }).waitFor();
+    await page.getByLabel('Filtrar por disponibilidad').selectOption('finished');
+    await page.getByRole('heading', { name: title, exact: true }).waitFor();
     await close();
-    checkDatabase();
+    checkDatabase('enhanced');
     await launch();
     await page.getByText('Actualizado después de instalar la nueva versión', { exact: true }).waitFor();
+    assert.equal(await page.getByLabel(`Disponibilidad de ${title}`, { exact: true }).inputValue(), 'finished');
+    await page.getByRole('button', { name: 'Agendadas', exact: true }).click();
+    await page.getByRole('heading', { name: title, exact: true }).waitFor();
+    assert.equal(await page.locator('time').getAttribute('datetime'), '2030-06-15T11:30');
+    // Preferences must also survive a real process restart.
+    await page.getByRole('button', { name: 'Columnas', exact: true }).click();
+    assert.ok(await page.getByRole('checkbox', { name: 'Notas', exact: true }).isChecked());
+    await page.getByRole('button', { name: 'Listo', exact: true }).click();
   }
   await page.screenshot({ path: `test-results/windows-${phase}.png` });
   await close();
   await stat(dbPath);
-  checkDatabase();
+  checkDatabase(phase === 'upgrade' ? 'enhanced' : 'check');
   assert.deepEqual(errors, [], 'Errores de JavaScript o del proceso');
   assert.deepEqual(externalRequests, [], 'La app intentó acceder a Internet');
   console.log(`PASS ${phase}: SQLite real, cierre normal, reapertura y red externa bloqueada. Base: ${dbPath}`);

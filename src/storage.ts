@@ -1,5 +1,5 @@
 import { isTauri } from '@tauri-apps/api/core';
-import type { Apartment } from './model';
+import { normalizeApartment, type Apartment } from './model';
 import Database from '@tauri-apps/plugin-sql';
 const key = 'arriendos.preview.v1';
 let connection: Promise<Database> | undefined;
@@ -12,9 +12,9 @@ async function db() {
   catch (error) { connection = undefined; throw error; }
 }
 export async function load(): Promise<Apartment[]> {
-  if (!desktop) return JSON.parse(localStorage.getItem(key) || '[]');
+  if (!desktop) return JSON.parse(localStorage.getItem(key) || '[]').map(normalizeApartment);
   const rows = await (await db()).select<{ data: string }[]>('SELECT data FROM apartments');
-  return rows.map(row => JSON.parse(row.data));
+  return rows.map(row => normalizeApartment(JSON.parse(row.data)));
 }
 export async function save(item: Apartment) {
   if (!desktop) { const items = await load(); localStorage.setItem(key, JSON.stringify([...items.filter(a => a.id !== item.id), item])); return; }

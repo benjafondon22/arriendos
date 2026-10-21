@@ -10,3 +10,5 @@ __pycache__/
 test-results/
 installer/
 src-tauri/ci-baseline.json
+
+.ci-previous/
