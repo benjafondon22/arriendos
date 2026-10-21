@@ -61,7 +61,7 @@ export default function App() {
         <button disabled={busy} aria-pressed={a.visitScheduled} className={a.visitScheduled ? 'checked' : ''} onClick={() => setEditing({ ...a, visitScheduled: true })}><span>{a.visitScheduled && <Check size={11}/>}</span>Visita agendada</button>
         <button disabled={busy} aria-pressed={a.visited} className={a.visited ? 'checked' : ''} onClick={() => void persist({ ...a, visited: !a.visited })}><span>{a.visited && <Check size={11}/>}</span>Visitado</button>
       </div>;
-      case 'visit': return a.visitScheduled ? <button className="visit-date" onClick={() => setEditing(a)}><CalendarDays size={14}/><time dateTime={a.visitAt}>{visitLabel(a.visitAt)}</time></button> : <button className="schedule-link" aria-label={'Agendar visita de ' + a.title} onClick={() => setEditing({ ...a, visitScheduled: true })}><Plus size={13}/> Agendar</button>;
+      case 'visit': return a.visitScheduled ? <button disabled={busy} className="visit-date" onClick={() => setEditing(a)}><CalendarDays size={14}/><time dateTime={a.visitAt}>{visitLabel(a.visitAt)}</time></button> : <button disabled={busy} className="schedule-link" aria-label={'Agendar visita de ' + a.title} onClick={() => setEditing({ ...a, visitScheduled: true })}><Plus size={13}/> Agendar</button>;
     }
   }
   return <div className="shell">
